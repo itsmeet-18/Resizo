@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resizo - PDF Editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+
+    <!-- PDF Processing Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <header>
+        <div class="logo">Resizo</div>
+        <nav class="main-nav">
+            <a href="#" class="nav-item" data-tool="merge-pdf">MERGE PDF</a>
+            <a href="#" class="nav-item" data-tool="split-pdf">SPLIT PDF</a>
+            <a href="#" class="nav-item" data-tool="compress-pdf">COMPRESS PDF</a>
+            <div class="nav-dropdown">
+                <span class="nav-item">CONVERT PDF <i class="fas fa-chevron-down"></i></span>
+                <div class="dropdown-content">
+                    <a href="#" data-tool="jpg-to-pdf">JPG to PDF</a>
+                    <a href="#" data-tool="word-to-pdf">WORD to PDF</a>
+                    <a href="#" data-tool="powerpoint-to-pdf">POWERPOINT to PDF</a>
+                    <a href="#" data-tool="excel-to-pdf">EXCEL to PDF</a>
+                    <a href="#" data-tool="html-to-pdf">HTML to PDF</a>
+                </div>
+            </div>
+            <div class="nav-dropdown">
+                <span class="nav-item">ALL PDF TOOLS <i class="fas fa-chevron-down"></i></span>
+                <div class="dropdown-content">
+                    <a href="#" data-tool="organize-pdf">Organize PDF</a>
+                    <a href="#" data-tool="pdf-to-jpg">PDF to JPG</a>
+                    <a href="#" data-tool="sign-pdf">Sign PDF</a>
+                    <a href="#" data-tool="watermark">Watermark</a>
+                </div>
+            </div>
+        </nav>
+        <div class="header-actions">
+            <button class="theme-btn" id="themeToggle">
+                <i class="fas fa-moon"></i>
+                <span>Theme</span>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <!-- Home View: Grid of Tools -->
+        <div id="home-view" class="view-section active">
+            <div class="hero">
+                <h1>Every tool you need to work with PDFs in one place</h1>
+                <p class="subtitle">Every tool you need to use PDFs, at your fingertips. All are 100% FREE and easy to
+                    use! Merge, split, compress, convert, rotate, unlock and watermark PDFs with just a few clicks.</p>
+            </div>
+
+            <div class="tools-grid" id="toolsGrid">
+                <!-- Tools will be injected here by JS -->
+            </div>
+        </div>
+
+        <!-- Single Tool View -->
+        <div id="tool-view" class="view-section hidden">
+            <div class="tool-header">
+                <button class="back-btn" id="backBtn"><i class="fas fa-arrow-left"></i> Back to Tools</button>
+                <h1 id="currentToolTitle">Tool Name</h1>
+                <p id="currentToolDesc" class="tool-desc">Tool Description</p>
+            </div>
+
+            <div class="drop-zone" id="dropZone">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <span class="drop-text">Drag & Drop files here</span>
+                <span class="or-divider">or</span>
+                <button class="action-btn" id="selectFilesBtn">Select PDF files</button>
+                <input type="file" id="fileInput" multiple hidden>
+            </div>
+        </div>
+    </main>
+
+    <footer class="glass-panel">
+        <p>BY MTG</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
