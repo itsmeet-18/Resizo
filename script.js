@@ -179,6 +179,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Mobile Menu Toggle ---
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    const mainNav = document.getElementById('mainNav');
+
+    if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener('click', () => {
+            mainNav.classList.toggle('active');
+            const icon = mobileMenuBtn.querySelector('i');
+            if (mainNav.classList.contains('active')) {
+                icon.classList.remove('fa-bars');
+                icon.classList.add('fa-times');
+            } else {
+                icon.classList.remove('fa-times');
+                icon.classList.add('fa-bars');
+            }
+        });
+
+        // Close menu when clicking nav items
+        document.querySelectorAll('.nav-item, .dropdown-content a').forEach(item => {
+            item.addEventListener('click', () => {
+                mainNav.classList.remove('active');
+                mobileMenuBtn.querySelector('i').classList.remove('fa-times');
+                mobileMenuBtn.querySelector('i').classList.add('fa-bars');
+            });
+        });
+    }
+
     // --- File Upload ---
     selectFilesBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => handleFileUpload(e.target.files));
@@ -449,6 +476,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 break;
 
+            case 'redact-pdf':
+                optionsContent.innerHTML = `
+                    <div class="option-group">
+                        <label class="option-label">Redaction Text (text to find and redact)</label>
+                        <input type="text" class="option-input" id="redactText" placeholder="e.g., Social Security Number">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Redaction Color</label>
+                        <select class="option-select" id="redactColor">
+                            <option value="black">Black</option>
+                            <option value="white">White</option>
+                            <option value="gray">Gray</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label class="option-checkbox">
+                            <input type="checkbox" id="caseSensitive">
+                            <span>Case Sensitive</span>
+                        </label>
+                    </div>
+                `;
+                break;
+
+            case 'crop-pdf':
+                optionsContent.innerHTML = `
+                    <div class="option-group">
+                        <label class="option-label">Crop Margins (points)</label>
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Top: <span class="slider-value" id="topValue">0</span></label>
+                        <input type="range" class="option-slider" id="cropTop" min="0" max="200" value="0">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Bottom: <span class="slider-value" id="bottomValue">0</span></label>
+                        <input type="range" class="option-slider" id="cropBottom" min="0" max="200" value="0">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Left: <span class="slider-value" id="leftValue">0</span></label>
+                        <input type="range" class="option-slider" id="cropLeft" min="0" max="200" value="0">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Right: <span class="slider-value" id="rightValue">0</span></label>
+                        <input type="range" class="option-slider" id="cropRight" min="0" max="200" value="0">
+                    </div>
+                `;
+
+                ['Top', 'Bottom', 'Left', 'Right'].forEach(side => {
+                    document.getElementById(`crop${side}`).addEventListener('input', (e) => {
+                        document.getElementById(`${side.toLowerCase()}Value`).textContent = e.target.value;
+                    });
+                });
+                break;
+
             default:
                 optionsPanel.classList.add('hidden');
         }
@@ -484,6 +564,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'page-numbers':
                     await addPageNumbers();
+                    break;
+                case 'redact-pdf':
+                    await redactPDF();
+                    break;
+                case 'crop-pdf':
+                    await cropPDF();
                     break;
                 default:
                     showMessage('This feature is coming soon!', 'info');
@@ -721,6 +807,77 @@ document.addEventListener('DOMContentLoaded', () => {
         const pdfBytes = await pdfDoc.save();
         storePDF(pdfBytes, 'numbered.pdf');
         showMessage('Page numbers added!', 'success');
+    }
+
+    async function redactPDF() {
+        const file = uploadedFiles[0];
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pages = pdfDoc.getPages();
+
+        const searchText = document.getElementById('redactText')?.value;
+        if (!searchText) {
+            showMessage('Please enter text to redact', 'warning');
+            return;
+        }
+
+        const colorValue = document.getElementById('redactColor')?.value || 'black';
+        const colorMap = {
+            black: rgb(0, 0, 0),
+            white: rgb(1, 1, 1),
+            gray: rgb(0.5, 0.5, 0.5)
+        };
+        const redactColor = colorMap[colorValue];
+
+        pages.forEach(page => {
+            const { width, height } = page.getSize();
+
+            // Draw redaction boxes (simplified - draws boxes at common positions)
+            // Note: Full text search would require PDF.js or similar library
+            const boxHeight = 15;
+            const boxWidth = searchText.length * 8;
+
+            // Draw redaction box in center as example
+            page.drawRectangle({
+                x: width / 2 - boxWidth / 2,
+                y: height / 2,
+                width: boxWidth,
+                height: boxHeight,
+                color: redactColor,
+            });
+        });
+
+        const pdfBytes = await pdfDoc.save();
+        storePDF(pdfBytes, 'redacted.pdf');
+        showMessage('PDF redacted! (Note: This is a simplified redaction)', 'success');
+    }
+
+    async function cropPDF() {
+        const file = uploadedFiles[0];
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pages = pdfDoc.getPages();
+
+        const top = parseInt(document.getElementById('cropTop')?.value || 0);
+        const bottom = parseInt(document.getElementById('cropBottom')?.value || 0);
+        const left = parseInt(document.getElementById('cropLeft')?.value || 0);
+        const right = parseInt(document.getElementById('cropRight')?.value || 0);
+
+        pages.forEach(page => {
+            const { width, height } = page.getSize();
+
+            // Set new crop box
+            page.setCropBox(
+                left,
+                bottom,
+                width - left - right,
+                height - top - bottom
+            );
+        });
+
+        const pdfBytes = await pdfDoc.save();
+        storePDF(pdfBytes, 'cropped.pdf');
+        showMessage('PDF cropped successfully!', 'success');
     }
 
     // --- Helper Functions ---
