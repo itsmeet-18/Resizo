@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const { PDFDocument, rgb, degrees } = PDFLib;
+    const { PDFDocument, rgb, degrees, StandardFonts } = PDFLib;
 
     // --- Tool Data ---
     const tools = [
@@ -44,9 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const selectFilesBtn = document.getElementById('selectFilesBtn');
+    const filesList = document.getElementById('filesList');
+    const optionsPanel = document.getElementById('optionsPanel');
+    const optionsContent = document.getElementById('optionsContent');
+    const processBtn = document.getElementById('processBtn');
 
     let currentTool = null;
     let uploadedFiles = [];
+    let processedPDFs = []; // Store processed PDFs
 
     // --- Render Tools ---
     function renderTools() {
@@ -86,11 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentToolTitle.textContent = tool.title;
         currentToolDesc.textContent = tool.desc;
 
-        // Update file input accept attribute based on tool
         updateFileInputAccept(tool.id);
-
-        // Reset drop zone
-        resetDropZone();
+        resetToolView();
 
         window.scrollTo(0, 0);
     }
@@ -98,12 +100,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function goHome() {
         currentTool = null;
         uploadedFiles = [];
+        resetToolView();
 
         toolView.classList.remove('active');
         toolView.classList.add('hidden');
 
         homeView.classList.remove('hidden');
         homeView.classList.add('active');
+    }
+
+    function resetToolView() {
+        dropZone.classList.remove('hidden');
+        filesList.classList.add('hidden');
+        optionsPanel.classList.add('hidden');
+        processBtn.classList.add('hidden');
+        document.getElementById('downloadSection').classList.add('hidden');
+        filesList.innerHTML = '';
+        optionsContent.innerHTML = '';
+        document.getElementById('downloadButtons').innerHTML = '';
+        processedPDFs = [];
+        dropZone.querySelector('.drop-text').textContent = 'Drag & Drop files here';
     }
 
     function updateFileInputAccept(toolId) {
@@ -119,13 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fileInput.setAttribute('accept', '.pdf');
         }
 
-        // Allow multiple files for merge
         fileInput.multiple = (toolId === 'merge-pdf' || toolId === 'jpg-to-pdf');
-    }
-
-    function resetDropZone() {
-        dropZone.querySelector('.drop-text').textContent = 'Drag & Drop files here';
-        dropZone.classList.remove('drag-over');
     }
 
     backBtn.addEventListener('click', goHome);
@@ -169,81 +179,335 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- File Upload & Processing ---
+    // --- File Upload ---
     selectFilesBtn.addEventListener('click', () => fileInput.click());
-
-    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    fileInput.addEventListener('change', (e) => handleFileUpload(e.target.files));
 
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.classList.add('drag-over');
     });
 
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('drag-over');
-    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('drag-over');
         if (e.dataTransfer.files.length > 0) {
-            handleFiles(e.dataTransfer.files);
+            handleFileUpload(e.dataTransfer.files);
         }
     });
 
-    async function handleFiles(files) {
+    function handleFileUpload(files) {
         if (!currentTool || files.length === 0) return;
 
         uploadedFiles = Array.from(files);
 
-        // Show processing indicator
-        showProcessing();
+        // Hide drop zone, show files list
+        dropZone.classList.add('hidden');
+        displayFilesList();
+        displayOptions();
+        processBtn.classList.remove('hidden');
+    }
+
+    function displayFilesList() {
+        filesList.classList.remove('hidden');
+        filesList.innerHTML = '<h3>Files (' + uploadedFiles.length + ')</h3>';
+
+        uploadedFiles.forEach((file, index) => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.draggable = currentTool.id === 'merge-pdf';
+            fileItem.dataset.index = index;
+
+            const sizeKB = (file.size / 1024).toFixed(1);
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            const displaySize = file.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+
+            fileItem.innerHTML = `
+                ${currentTool.id === 'merge-pdf' ? '<div class="file-icon drag-handle"><i class="fas fa-grip-vertical"></i></div>' : ''}
+                <div class="file-info">
+                    <div class="file-icon"><i class="fas fa-file-pdf"></i></div>
+                    <div class="file-details">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${displaySize}</div>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <button class="file-action-btn" onclick="removeFile(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+
+            if (currentTool.id === 'merge-pdf') {
+                fileItem.addEventListener('dragstart', handleDragStart);
+                fileItem.addEventListener('dragover', handleDragOver);
+                fileItem.addEventListener('drop', handleDrop);
+                fileItem.addEventListener('dragend', handleDragEnd);
+            }
+
+            filesList.appendChild(fileItem);
+        });
+    }
+
+    // Drag and drop for merge
+    let draggedItem = null;
+
+    function handleDragStart(e) {
+        draggedItem = e.currentTarget;
+        e.currentTarget.classList.add('dragging');
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        const dropTarget = e.currentTarget;
+
+        if (draggedItem !== dropTarget) {
+            const dragIndex = parseInt(draggedItem.dataset.index);
+            const dropIndex = parseInt(dropTarget.dataset.index);
+
+            // Swap files
+            [uploadedFiles[dragIndex], uploadedFiles[dropIndex]] = [uploadedFiles[dropIndex], uploadedFiles[dragIndex]];
+            displayFilesList();
+        }
+    }
+
+    function handleDragEnd(e) {
+        e.currentTarget.classList.remove('dragging');
+        draggedItem = null;
+    }
+
+    window.removeFile = function (index) {
+        uploadedFiles.splice(index, 1);
+        if (uploadedFiles.length === 0) {
+            resetToolView();
+        } else {
+            displayFilesList();
+        }
+    };
+
+    // --- Options Panel ---
+    function displayOptions() {
+        optionsContent.innerHTML = '';
+        optionsPanel.classList.remove('hidden');
+
+        switch (currentTool.id) {
+            case 'rotate-pdf':
+                optionsContent.innerHTML = `
+                    <div class="option-group">
+                        <label class="option-label">Rotation Direction</label>
+                        <div class="option-radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="rotation" value="90" checked>
+                                <span>90° Clockwise</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="rotation" value="180">
+                                <span>180°</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="rotation" value="270">
+                                <span>90° Counter-clockwise</span>
+                            </label>
+                        </div>
+                    </div>
+                `;
+                break;
+
+            case 'split-pdf':
+                optionsContent.innerHTML = `
+                    <div class="option-group">
+                        <label class="option-label">Split Mode</label>
+                        <select class="option-select" id="splitMode">
+                            <option value="all">Extract all pages (one file per page)</option>
+                            <option value="range">Split by page range</option>
+                            <option value="after">Split after specific page</option>
+                        </select>
+                    </div>
+                    <div class="option-group" id="rangeOptions" style="display: none;">
+                        <label class="option-label">Page Range (e.g., 1-5, 7, 10-12)</label>
+                        <input type="text" class="option-input" id="pageRange" placeholder="1-5, 7, 10-12">
+                    </div>
+                    <div class="option-group" id="afterOptions" style="display: none;">
+                        <label class="option-label">Split After Page Number</label>
+                        <input type="number" class="option-input" id="splitAfter" min="1" placeholder="3">
+                    </div>
+                `;
+
+                document.getElementById('splitMode').addEventListener('change', (e) => {
+                    document.getElementById('rangeOptions').style.display = e.target.value === 'range' ? 'block' : 'none';
+                    document.getElementById('afterOptions').style.display = e.target.value === 'after' ? 'block' : 'none';
+                });
+                break;
+
+            case 'compress-pdf':
+                optionsContent.innerHTML = `
+                    <div class="option-group">
+                        <label class="option-label">Compression Level</label>
+                        <select class="option-select" id="compressionLevel">
+                            <option value="low">Low (Larger file, better quality)</option>
+                            <option value="medium" selected>Medium (Balanced)</option>
+                            <option value="high">High (Smaller file, lower quality)</option>
+                        </select>
+                    </div>
+                `;
+                break;
+
+            case 'watermark':
+                optionsContent.innerHTML = `
+                    <div class="option-group">
+                        <label class="option-label">Watermark Text</label>
+                        <input type="text" class="option-input" id="watermarkText" placeholder="CONFIDENTIAL" value="CONFIDENTIAL">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Position</label>
+                        <select class="option-select" id="watermarkPosition">
+                            <option value="center">Center</option>
+                            <option value="top">Top</option>
+                            <option value="bottom">Bottom</option>
+                            <option value="diagonal">Diagonal</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Opacity: <span class="slider-value" id="opacityValue">30%</span></label>
+                        <input type="range" class="option-slider" id="watermarkOpacity" min="10" max="100" value="30">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Font Size: <span class="slider-value" id="sizeValue">50</span></label>
+                        <input type="range" class="option-slider" id="watermarkSize" min="20" max="100" value="50">
+                    </div>
+                `;
+
+                document.getElementById('watermarkOpacity').addEventListener('input', (e) => {
+                    document.getElementById('opacityValue').textContent = e.target.value + '%';
+                });
+                document.getElementById('watermarkSize').addEventListener('input', (e) => {
+                    document.getElementById('sizeValue').textContent = e.target.value;
+                });
+                break;
+
+            case 'page-numbers':
+                optionsContent.innerHTML = `
+                    <div class="option-group">
+                        <label class="option-label">Position</label>
+                        <select class="option-select" id="numberPosition">
+                            <option value="bottom-center">Bottom Center</option>
+                            <option value="bottom-left">Bottom Left</option>
+                            <option value="bottom-right">Bottom Right</option>
+                            <option value="top-center">Top Center</option>
+                            <option value="top-left">Top Left</option>
+                            <option value="top-right">Top Right</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Format</label>
+                        <select class="option-select" id="numberFormat">
+                            <option value="number">1, 2, 3...</option>
+                            <option value="page-number">Page 1, Page 2...</option>
+                            <option value="of-total">1 of 10, 2 of 10...</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Starting Number</label>
+                        <input type="number" class="option-input" id="startingNumber" value="1" min="1">
+                    </div>
+                `;
+                break;
+
+            case 'jpg-to-pdf':
+                optionsContent.innerHTML = `
+                    <div class="option-group">
+                        <label class="option-label">Page Orientation</label>
+                        <div class="option-radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="orientation" value="auto" checked>
+                                <span>Auto</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="orientation" value="portrait">
+                                <span>Portrait</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="orientation" value="landscape">
+                                <span>Landscape</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Margin (pixels): <span class="slider-value" id="marginValue">0</span></label>
+                        <input type="range" class="option-slider" id="imageMargin" min="0" max="100" value="0">
+                    </div>
+                `;
+
+                document.getElementById('imageMargin').addEventListener('input', (e) => {
+                    document.getElementById('marginValue').textContent = e.target.value;
+                });
+                break;
+
+            default:
+                optionsPanel.classList.add('hidden');
+        }
+    }
+
+    // --- Process Button ---
+    processBtn.addEventListener('click', async () => {
+        if (!currentTool || uploadedFiles.length === 0) return;
+
+        processBtn.textContent = 'Processing...';
+        processBtn.disabled = true;
+        processedPDFs = [];
 
         try {
             switch (currentTool.id) {
                 case 'merge-pdf':
-                    await mergePDFs(uploadedFiles);
+                    await mergePDFs();
                     break;
                 case 'split-pdf':
-                    await splitPDF(uploadedFiles[0]);
+                    await splitPDF();
                     break;
                 case 'compress-pdf':
-                    await compressPDF(uploadedFiles[0]);
+                    await compressPDF();
                     break;
                 case 'rotate-pdf':
-                    await rotatePDF(uploadedFiles[0]);
+                    await rotatePDF();
                     break;
                 case 'jpg-to-pdf':
-                    await imagesToPDF(uploadedFiles);
+                    await imagesToPDF();
                     break;
                 case 'watermark':
-                    await addWatermark(uploadedFiles[0]);
+                    await addWatermark();
                     break;
                 case 'page-numbers':
-                    await addPageNumbers(uploadedFiles[0]);
+                    await addPageNumbers();
                     break;
                 default:
                     showMessage('This feature is coming soon!', 'info');
             }
+
+            // Show download section if processing succeeded
+            if (processedPDFs.length > 0) {
+                showDownloadSection();
+            }
         } catch (error) {
             console.error('Processing error:', error);
-            showMessage('Error processing file: ' + error.message, 'error');
+            showMessage('Error: ' + error.message, 'error');
         } finally {
-            hideProcessing();
+            processBtn.textContent = 'Process';
+            processBtn.disabled = false;
         }
-    }
+    });
 
     // --- PDF Processing Functions ---
 
-    async function mergePDFs(files) {
-        if (files.length < 2) {
-            showMessage('Please select at least 2 PDF files to merge', 'warning');
-            return;
-        }
-
+    async function mergePDFs() {
         const mergedPdf = await PDFDocument.create();
 
-        for (const file of files) {
+        for (const file of uploadedFiles) {
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await PDFDocument.load(arrayBuffer);
             const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
@@ -251,66 +515,93 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const pdfBytes = await mergedPdf.save();
-        downloadPDF(pdfBytes, 'merged.pdf');
+        storePDF(pdfBytes, 'merged.pdf');
         showMessage('PDFs merged successfully!', 'success');
     }
 
-    async function splitPDF(file) {
+    async function splitPDF() {
+        const file = uploadedFiles[0];
         const arrayBuffer = await file.arrayBuffer();
         const pdfDoc = await PDFDocument.load(arrayBuffer);
         const numPages = pdfDoc.getPageCount();
 
-        for (let i = 0; i < numPages; i++) {
-            const newPdf = await PDFDocument.create();
-            const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
-            newPdf.addPage(copiedPage);
+        const mode = document.getElementById('splitMode')?.value || 'all';
 
-            const pdfBytes = await newPdf.save();
-            downloadPDF(pdfBytes, `page_${i + 1}.pdf`);
+        if (mode === 'all') {
+            for (let i = 0; i < numPages; i++) {
+                const newPdf = await PDFDocument.create();
+                const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
+                newPdf.addPage(copiedPage);
+
+                const pdfBytes = await newPdf.save();
+                storePDF(pdfBytes, `page_${i + 1}.pdf`);
+            }
+            showMessage(`PDF split into ${numPages} pages!`, 'success');
+        } else if (mode === 'after') {
+            const splitAfter = parseInt(document.getElementById('splitAfter').value);
+            if (!splitAfter || splitAfter >= numPages) {
+                showMessage('Invalid page number', 'error');
+                return;
+            }
+
+            // First part
+            const firstPdf = await PDFDocument.create();
+            const firstPages = await firstPdf.copyPages(pdfDoc, Array.from({ length: splitAfter }, (_, i) => i));
+            firstPages.forEach(page => firstPdf.addPage(page));
+            storePDF(await firstPdf.save(), `part_1_pages_1-${splitAfter}.pdf`);
+
+            // Second part
+            const secondPdf = await PDFDocument.create();
+            const secondPages = await secondPdf.copyPages(pdfDoc, Array.from({ length: numPages - splitAfter }, (_, i) => i + splitAfter));
+            secondPages.forEach(page => secondPdf.addPage(page));
+            storePDF(await secondPdf.save(), `part_2_pages_${splitAfter + 1}-${numPages}.pdf`);
+
+            showMessage('PDF split into 2 parts!', 'success');
         }
-
-        showMessage(`PDF split into ${numPages} pages!`, 'success');
     }
 
-    async function compressPDF(file) {
+    async function compressPDF() {
+        const file = uploadedFiles[0];
         const arrayBuffer = await file.arrayBuffer();
         const pdfDoc = await PDFDocument.load(arrayBuffer);
 
-        // Basic compression by re-saving
+        const level = document.getElementById('compressionLevel')?.value || 'medium';
+        const objectsPerTick = level === 'high' ? 100 : level === 'medium' ? 50 : 25;
+
         const pdfBytes = await pdfDoc.save({
             useObjectStreams: true,
             addDefaultPage: false,
-            objectsPerTick: 50,
+            objectsPerTick: objectsPerTick,
         });
 
-        const originalSize = file.size;
-        const newSize = pdfBytes.length;
-        const reduction = ((1 - newSize / originalSize) * 100).toFixed(1);
-
-        downloadPDF(pdfBytes, 'compressed.pdf');
-        showMessage(`PDF compressed! Size reduced by ${reduction}%`, 'success');
+        const reduction = ((1 - pdfBytes.length / file.size) * 100).toFixed(1);
+        storePDF(pdfBytes, 'compressed.pdf');
+        showMessage(`Compressed! Size reduced by ${reduction}%`, 'success');
     }
 
-    async function rotatePDF(file) {
+    async function rotatePDF() {
+        const file = uploadedFiles[0];
         const arrayBuffer = await file.arrayBuffer();
         const pdfDoc = await PDFDocument.load(arrayBuffer);
         const pages = pdfDoc.getPages();
 
-        // Rotate each page 90 degrees clockwise
+        const rotation = parseInt(document.querySelector('input[name="rotation"]:checked').value);
+
         pages.forEach(page => {
             const currentRotation = page.getRotation().angle;
-            page.setRotation(degrees(currentRotation + 90));
+            page.setRotation(degrees(currentRotation + rotation));
         });
 
         const pdfBytes = await pdfDoc.save();
-        downloadPDF(pdfBytes, 'rotated.pdf');
-        showMessage('PDF rotated successfully!', 'success');
+        storePDF(pdfBytes, 'rotated.pdf');
+        showMessage(`PDF rotated ${rotation}° successfully!`, 'success');
     }
 
-    async function imagesToPDF(files) {
+    async function imagesToPDF() {
         const pdfDoc = await PDFDocument.create();
+        const margin = parseInt(document.getElementById('imageMargin')?.value || 0);
 
-        for (const file of files) {
+        for (const file of uploadedFiles) {
             const arrayBuffer = await file.arrayBuffer();
             let image;
 
@@ -322,66 +613,148 @@ document.addEventListener('DOMContentLoaded', () => {
                 continue;
             }
 
-            const page = pdfDoc.addPage([image.width, image.height]);
+            const page = pdfDoc.addPage([image.width + margin * 2, image.height + margin * 2]);
             page.drawImage(image, {
-                x: 0,
-                y: 0,
+                x: margin,
+                y: margin,
                 width: image.width,
                 height: image.height,
             });
         }
 
         const pdfBytes = await pdfDoc.save();
-        downloadPDF(pdfBytes, 'images.pdf');
-        showMessage('Images converted to PDF successfully!', 'success');
+        storePDF(pdfBytes, 'images.pdf');
+        showMessage('Images converted to PDF!', 'success');
     }
 
-    async function addWatermark(file) {
+    async function addWatermark() {
+        const file = uploadedFiles[0];
         const arrayBuffer = await file.arrayBuffer();
         const pdfDoc = await PDFDocument.load(arrayBuffer);
         const pages = pdfDoc.getPages();
 
-        const watermarkText = prompt('Enter watermark text:', 'CONFIDENTIAL');
-        if (!watermarkText) return;
+        const text = document.getElementById('watermarkText')?.value || 'CONFIDENTIAL';
+        const position = document.getElementById('watermarkPosition')?.value || 'center';
+        const opacity = (document.getElementById('watermarkOpacity')?.value || 30) / 100;
+        const size = parseInt(document.getElementById('watermarkSize')?.value || 50);
 
         pages.forEach(page => {
             const { width, height } = page.getSize();
-            page.drawText(watermarkText, {
-                x: width / 2 - 100,
-                y: height / 2,
-                size: 50,
+            let x, y, rotate = 0;
+
+            switch (position) {
+                case 'top':
+                    x = width / 2 - (text.length * size * 0.3);
+                    y = height - 50;
+                    break;
+                case 'bottom':
+                    x = width / 2 - (text.length * size * 0.3);
+                    y = 50;
+                    break;
+                case 'diagonal':
+                    x = width / 2 - 100;
+                    y = height / 2;
+                    rotate = -45;
+                    break;
+                default: // center
+                    x = width / 2 - (text.length * size * 0.3);
+                    y = height / 2;
+            }
+
+            page.drawText(text, {
+                x, y, size,
                 color: rgb(0.7, 0.7, 0.7),
-                opacity: 0.3,
-                rotate: degrees(-45),
+                opacity: opacity,
+                rotate: degrees(rotate),
             });
         });
 
         const pdfBytes = await pdfDoc.save();
-        downloadPDF(pdfBytes, 'watermarked.pdf');
-        showMessage('Watermark added successfully!', 'success');
+        storePDF(pdfBytes, 'watermarked.pdf');
+        showMessage('Watermark added!', 'success');
     }
 
-    async function addPageNumbers(file) {
+    async function addPageNumbers() {
+        const file = uploadedFiles[0];
         const arrayBuffer = await file.arrayBuffer();
         const pdfDoc = await PDFDocument.load(arrayBuffer);
         const pages = pdfDoc.getPages();
 
+        const position = document.getElementById('numberPosition')?.value || 'bottom-center';
+        const format = document.getElementById('numberFormat')?.value || 'number';
+        const startNum = parseInt(document.getElementById('startingNumber')?.value || 1);
+        const totalPages = pages.length;
+
         pages.forEach((page, idx) => {
             const { width, height } = page.getSize();
-            page.drawText(`${idx + 1}`, {
-                x: width / 2 - 10,
-                y: 20,
+            const pageNum = idx + startNum;
+
+            let text;
+            switch (format) {
+                case 'page-number':
+                    text = `Page ${pageNum}`;
+                    break;
+                case 'of-total':
+                    text = `${pageNum} of ${totalPages}`;
+                    break;
+                default:
+                    text = `${pageNum}`;
+            }
+
+            let x, y;
+            const textWidth = text.length * 7;
+
+            if (position.includes('left')) x = 30;
+            else if (position.includes('right')) x = width - 30 - textWidth;
+            else x = width / 2 - textWidth / 2;
+
+            if (position.includes('top')) y = height - 30;
+            else y = 20;
+
+            page.drawText(text, {
+                x, y,
                 size: 12,
                 color: rgb(0, 0, 0),
             });
         });
 
         const pdfBytes = await pdfDoc.save();
-        downloadPDF(pdfBytes, 'numbered.pdf');
-        showMessage('Page numbers added successfully!', 'success');
+        storePDF(pdfBytes, 'numbered.pdf');
+        showMessage('Page numbers added!', 'success');
     }
 
     // --- Helper Functions ---
+
+    function storePDF(pdfBytes, filename) {
+        processedPDFs.push({ bytes: pdfBytes, filename: filename });
+    }
+
+    function showDownloadSection() {
+        const downloadSection = document.getElementById('downloadSection');
+        const downloadButtons = document.getElementById('downloadButtons');
+
+        downloadSection.classList.remove('hidden');
+        downloadButtons.innerHTML = '';
+
+        processedPDFs.forEach((pdf, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'download-btn';
+            btn.innerHTML = `<i class="fas fa-download"></i> Download ${pdf.filename}`;
+            btn.onclick = () => downloadPDF(pdf.bytes, pdf.filename);
+            downloadButtons.appendChild(btn);
+        });
+
+        // Add download all button if multiple files
+        if (processedPDFs.length > 1) {
+            const downloadAllBtn = document.createElement('button');
+            downloadAllBtn.className = 'download-btn download-all-btn';
+            downloadAllBtn.innerHTML = `<i class="fas fa-download"></i> Download All (${processedPDFs.length} files)`;
+            downloadAllBtn.onclick = () => {
+                processedPDFs.forEach(pdf => downloadPDF(pdf.bytes, pdf.filename));
+            };
+            downloadButtons.appendChild(downloadAllBtn);
+        }
+    }
 
     function downloadPDF(pdfBytes, filename) {
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -393,20 +766,6 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }
-
-    function showProcessing() {
-        selectFilesBtn.textContent = 'Processing...';
-        selectFilesBtn.disabled = true;
-        dropZone.style.pointerEvents = 'none';
-        dropZone.style.opacity = '0.6';
-    }
-
-    function hideProcessing() {
-        selectFilesBtn.textContent = 'Select PDF files';
-        selectFilesBtn.disabled = false;
-        dropZone.style.pointerEvents = 'auto';
-        dropZone.style.opacity = '1';
     }
 
     function showMessage(message, type = 'info') {
@@ -441,7 +800,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     }
 
-    // Add animations to CSS dynamically
     const style = document.createElement('style');
     style.textContent = `
         @keyframes slideIn {
@@ -455,6 +813,5 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     document.head.appendChild(style);
 
-    // Initialize
     renderTools();
 });
