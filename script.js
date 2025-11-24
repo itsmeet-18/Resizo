@@ -601,7 +601,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const pdfBytes = await mergedPdf.save();
-        storePDF(pdfBytes, 'merged.pdf');
+        const baseName = uploadedFiles[0].name.replace('.pdf', '');
+        storePDF(pdfBytes, `${baseName}_merged.pdf`);
         showMessage('PDFs merged successfully!', 'success');
     }
 
@@ -620,7 +621,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 newPdf.addPage(copiedPage);
 
                 const pdfBytes = await newPdf.save();
-                storePDF(pdfBytes, `page_${i + 1}.pdf`);
+                const baseName = file.name.replace('.pdf', '');
+                storePDF(pdfBytes, `${baseName}_page_${i + 1}.pdf`);
             }
             showMessage(`PDF split into ${numPages} pages!`, 'success');
         } else if (mode === 'after') {
@@ -634,13 +636,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const firstPdf = await PDFDocument.create();
             const firstPages = await firstPdf.copyPages(pdfDoc, Array.from({ length: splitAfter }, (_, i) => i));
             firstPages.forEach(page => firstPdf.addPage(page));
-            storePDF(await firstPdf.save(), `part_1_pages_1-${splitAfter}.pdf`);
+            const baseName = file.name.replace('.pdf', '');
+            storePDF(await firstPdf.save(), `${baseName}_part_1_pages_1-${splitAfter}.pdf`);
 
             // Second part
             const secondPdf = await PDFDocument.create();
             const secondPages = await secondPdf.copyPages(pdfDoc, Array.from({ length: numPages - splitAfter }, (_, i) => i + splitAfter));
             secondPages.forEach(page => secondPdf.addPage(page));
-            storePDF(await secondPdf.save(), `part_2_pages_${splitAfter + 1}-${numPages}.pdf`);
+            storePDF(await secondPdf.save(), `${baseName}_part_2_pages_${splitAfter + 1}-${numPages}.pdf`);
 
             showMessage('PDF split into 2 parts!', 'success');
         }
@@ -661,7 +664,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const reduction = ((1 - pdfBytes.length / file.size) * 100).toFixed(1);
-        storePDF(pdfBytes, 'compressed.pdf');
+        const baseName = file.name.replace('.pdf', '');
+        storePDF(pdfBytes, `${baseName}_compressed.pdf`);
         showMessage(`Compressed! Size reduced by ${reduction}%`, 'success');
     }
 
@@ -679,7 +683,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const pdfBytes = await pdfDoc.save();
-        storePDF(pdfBytes, 'rotated.pdf');
+        const baseName = file.name.replace('.pdf', '');
+        storePDF(pdfBytes, `${baseName}_rotated.pdf`);
         showMessage(`PDF rotated ${rotation}° successfully!`, 'success');
     }
 
@@ -709,7 +714,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const pdfBytes = await pdfDoc.save();
-        storePDF(pdfBytes, 'images.pdf');
+        const baseName = uploadedFiles[0].name.replace(/\.(jpg|jpeg|png)$/i, '');
+        storePDF(pdfBytes, `${baseName}_converted.pdf`);
         showMessage('Images converted to PDF!', 'success');
     }
 
@@ -756,7 +762,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const pdfBytes = await pdfDoc.save();
-        storePDF(pdfBytes, 'watermarked.pdf');
+        const baseName = file.name.replace('.pdf', '');
+        storePDF(pdfBytes, `${baseName}_watermarked.pdf`);
         showMessage('Watermark added!', 'success');
     }
 
@@ -805,7 +812,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const pdfBytes = await pdfDoc.save();
-        storePDF(pdfBytes, 'numbered.pdf');
+        const baseName = file.name.replace('.pdf', '');
+        storePDF(pdfBytes, `${baseName}_numbered.pdf`);
         showMessage('Page numbers added!', 'success');
     }
 
@@ -848,7 +856,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const pdfBytes = await pdfDoc.save();
-        storePDF(pdfBytes, 'redacted.pdf');
+        const baseName = file.name.replace('.pdf', '');
+        storePDF(pdfBytes, `${baseName}_redacted.pdf`);
         showMessage('PDF redacted! (Note: This is a simplified redaction)', 'success');
     }
 
@@ -876,7 +885,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const pdfBytes = await pdfDoc.save();
-        storePDF(pdfBytes, 'cropped.pdf');
+        const baseName = file.name.replace('.pdf', '');
+        storePDF(pdfBytes, `${baseName}_cropped.pdf`);
         showMessage('PDF cropped successfully!', 'success');
     }
 
